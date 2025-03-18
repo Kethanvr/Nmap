@@ -137,13 +137,6 @@ class NmapScanner:
                 
             input("\nPress Enter to continue...")
 
-def main():
-    if not os.path.exists('/usr/bin/nmap') and not os.path.exists('C:\\Program Files (x86)\\Nmap\\nmap.exe'):
-        print("❌ Nmap not found! Please install Nmap first.")
-        sys.exit(1)
-        
-    scanner = NmapScanner()
-    scanner.main_menu()
 
 if __name__ == "__main__":
     main()
