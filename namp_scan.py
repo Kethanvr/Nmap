@@ -1,142 +1,132 @@
-import os
 import nmap
-from pyfiglet import figlet_format
-from datetime import datetime
+from colorama import Fore, Style, init
+import os
 import sys
+import re
 
-# --- Core Configuration ---
-DEFAULT_FILENAME = "scan_result.txt"
-DISCLAIMER = "WARNING: Use only on networks you own or have explicit authorization to scan!"
+# Initialize colorama
+init(autoreset=True)
 
-class NmapScanner:
+# Default scan result file
+DEFAULT_FILENAME = "scan_results.txt"
+
+# Function to save results
+def save_results(results, filename=DEFAULT_FILENAME):
+    with open(filename, "w") as file:
+        file.write(results)
+    print(f"{Fore.GREEN}\n[✔] Scan results saved as {filename}{Style.RESET_ALL}")
+
+# Function to validate IP
+
+def is_valid_ip(ip):
+    pattern = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}(?:/\d{1,2})?$")
+    return bool(pattern.match(ip))
+
+# Function to handle dummy bot network selection
+def use_dummy_bot():
+    choice = input("\n[?] Do you want to use a dummy bot network for privacy? (y/n): ")
+    return "-D RND:10" if choice.lower() == 'y' else ""
+
+# Router Scanner Class
+class RouterScanner:
     def __init__(self):
-        self.scanner = nmap.PortScanner()
+        self.nm = nmap.PortScanner()
 
-    def show_banner(self):
-        os.system("clear" if os.name == "posix" else "cls")
-        print("\033[91m" + figlet_format("Kethan VR", font="slant") + "\033[0m")
-        print("\033[94m" + "Scanner Pro".center(50) + "\033[0m")
-        print(f"\n\033[91m{DISCLAIMER}\033[0m\n")
-
-    def run_scan(self, target: str, params: str, filename: str) -> bool:
+    def scan_routers(self, target, extra_args):
         try:
-            if not target:
-                raise ValueError("Target cannot be empty")
-                
-            print(f"\n🔍 Scanning {target} with parameters: {params}")
-            self.scanner.scan(target, arguments=params)
-            
-            with open(filename, 'w') as report:
-                report.write(f"Nmap Scan Report ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
-                report.write("="*50 + "\n")
-                report.write(f"Target: {target}\nScan Type: {params}\n\n")
-                
-                if not self.scanner.all_hosts():
-                    report.write("No hosts found!\n")
-                    print("⚠️ No hosts responded to the scan")
-                    return False
-                
-                for host in self.scanner.all_hosts():
-                    report.write(f"Host: {host}\nStatus: {self.scanner[host].state()}\n")
-                    
-                    # OS Detection with error handling
-                    osmatches = self.scanner[host].get('osmatch', [])
-                    report.write(f"OS: {osmatches[0]['name'] if osmatches else 'Could not be determined'}")
-                    report.write(f" (Accuracy: {osmatches[0]['accuracy']}%)" if osmatches else "\n")
-                    
-                    # Port/Service Information
-                    for proto in self.scanner[host].all_protocols():
-                        report.write(f"\n{proto.upper()} Services:\n")
-                        ports = sorted(self.scanner[host][proto].keys())
-                        for port in ports:
-                            service = self.scanner[host][proto][port]
-                            report.write(f"Port {port}: {service['name']} ({service['state']})\n")
-                            if 'product' in service and service['product']:
-                                report.write(f"    Service: {service['product']} {service.get('version', '')}\n")
-                            if 'script' in service:
-                                for script, output in service['script'].items():
-                                    report.write(f"    {script}: {output.strip()}\n")
-            
-            print(f"\n✅ Results saved to '{filename}'")
-            return True
-            
-        except nmap.PortScannerError as e:
-            print(f"❌ Scan failed: {str(e)}")
-            return False
-        except PermissionError:
-            print("❌ Permission denied: Run with sudo/admin privileges")
-            return False
-        except Exception as e:
-            print(f"❌ Unexpected error: {str(e)}")
-            return False
+            self.nm.scan(hosts=target, arguments=f'-sn --traceroute {extra_args}')
+            return self.nm.csv() if self.nm.all_hosts() else "No routers found!"
+        except nmap.PortScannerError:
+            return "Scan error! Check target format."
 
-    def web_scan_menu(self, target: str):
-        web_scans = {
-            "1": ("Basic Web Scan", "-p 80,443,8080,8443 --script=http-title"),
-            "2": ("Full Web Audit", "-p 80,443 --script=http*"),
-            "3": ("CMS Detection", "--script=http-cms*"),
-            "4": ("Vuln Check (XSS/SQLi)", "--script=http-sql*,http-xss*"),
-            "5": ("Dir Bruteforce Check", "--script=http-enum")
-        }
-        
-        while True:
-            self.show_banner()
-            print("\n🕸️ Web Application Scanning Options:")
-            for key, (desc, _) in web_scans.items():
-                print(f"{key}. {desc}")
-            print("6. Return to Main Menu")
-            
-            choice = input("\nChoose option (1-6): ")
-            if choice == "6":
-                return
-            
-            if choice not in web_scans:
-                print("❌ Invalid choice!")
-                continue
-                
-            fname = input(f"Save as [Enter for '{DEFAULT_FILENAME}']: ") or DEFAULT_FILENAME
-            desc, params = web_scans[choice]
-            self.run_scan(target, params, fname)
-            input("\nPress Enter to continue...")
+# Connected Devices Scanner Class
+class DeviceScanner:
+    def __init__(self):
+        self.nm = nmap.PortScanner()
 
-    def main_menu(self):
-        scans = {
-            "1": ("Comprehensive Network Scan", "-A -O -p- -sV --script=vuln"),
-            "3": ("Custom TCP Scan", "-sS -p-"),
-            "4": ("Service Version Detection", "-sV -O")
-        }
-        
-        while True:
-            self.show_banner()
-            print("Main Menu:")
-            for key, (desc, _) in scans.items():
-                print(f"{key}. {desc}")
-            print("2. Web Application Scan")
-            print("0. Exit")
-            
-            choice = input("\nChoose an option (0-4): ")
-            
-            if choice == "0":
-                print("\n🔒 Exiting Kethan VR Scanner Pro - Stay ethical!")
-                break
-                
-            target = input("\n🎯 Enter target (IP/range/URL): ").strip()
-            if not target:
-                print("❌ Target cannot be empty!")
-                continue
-                
-            fname = input(f"Save as [Enter for '{DEFAULT_FILENAME}']: ") or DEFAULT_FILENAME
-            
-            if choice == "2":
-                self.web_scan_menu(target)
-            elif choice in scans:
-                desc, params = scans[choice]
-                self.run_scan(target, params, fname)
-            else:
-                print("⚠️ Invalid option!")
-                
-            input("\nPress Enter to continue...")
+    def scan_devices(self, target, extra_args):
+        try:
+            self.nm.scan(hosts=target, arguments=f'-sn {extra_args}')
+            devices = [host for host in self.nm.all_hosts()]
+            return "\n".join(devices) if devices else "No devices found!"
+        except nmap.PortScannerError:
+            return "Scan error! Check network range."
 
+# Web Server Scanner Class
+class WebScanner:
+    def __init__(self):
+        self.nm = nmap.PortScanner()
+
+    def scan_webserver(self, target, extra_args):
+        try:
+            self.nm.scan(hosts=target, arguments=f'-Pn -sV {extra_args}')
+            scan_results = []
+            for host in self.nm.all_hosts():
+                for proto in self.nm[host].all_protocols():
+                    ports = self.nm[host][proto].keys()
+                    for port in ports:
+                        service = self.nm[host][proto][port]['name']
+                        scan_results.append(f"Port {port}/{proto}: {service}")
+            return "\n".join(scan_results) if scan_results else "No open ports found!"
+        except nmap.PortScannerError:
+            return "Scan error! Check target address."
+
+# Function for scanning menu
+def scan_menu(scan_type, scanner_class):
+    while True:
+        print(f"\n{Fore.CYAN}{scan_type} Scanning:{Style.RESET_ALL}")
+        target = input("Enter target IP/Range: ")
+
+        if not is_valid_ip(target):
+            print(f"{Fore.RED}Invalid IP format! Try again.{Style.RESET_ALL}")
+            continue
+
+        extra_args = use_dummy_bot()
+        scanner = scanner_class()
+        results = scanner.scan_routers(target, extra_args) if scan_type == "Router" else \
+                  scanner.scan_devices(target, extra_args) if scan_type == "Devices" else \
+                  scanner.scan_webserver(target, extra_args)
+
+        print("\nScan Results:")
+        print(results)
+
+        # Ask user to save the results
+        save_choice = input("\n[?] Do you want to save the results? (y/n): ")
+        if save_choice.lower() == 'y':
+            filename = input("Enter filename (or press Enter for default 'scan_results.txt'): ") or DEFAULT_FILENAME
+            save_results(results, filename)
+
+        choice = input("\n[0] Return to Main Menu | [99] Exit: ")
+        if choice == '0':
+            return
+        elif choice == '99':
+            sys.exit()
+
+# Main Menu
+def main_menu():
+    while True:
+        print(f"\n{Fore.CYAN}Main Menu:{Style.RESET_ALL}")
+        print("[1] Router Scanning")
+        print("[2] Connected Devices Scanning")
+        print("[3] Web Server Scanning")
+        print("[99] Exit")
+
+        choice = input("\nSelect an option: ")
+        if choice == '1':
+            scan_menu("Router", RouterScanner)
+        elif choice == '2':
+            scan_menu("Devices", DeviceScanner)
+        elif choice == '3':
+            scan_menu("Web Server", WebScanner)
+        elif choice == '99':
+            print(f"{Fore.YELLOW}Exiting...{Style.RESET_ALL}")
+            sys.exit()
+        else:
+            print(f"{Fore.RED}Invalid option! Try again.{Style.RESET_ALL}")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main_menu()
+    except KeyboardInterrupt:
+        print(f"\n{Fore.YELLOW}Operation cancelled by user!{Style.RESET_ALL}")
+        sys.exit()
