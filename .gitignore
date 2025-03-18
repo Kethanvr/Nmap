@@ -2,7 +2,34 @@
 *.pyc
 *.pyo
 __pycache__/
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
 
+# Ignore test coverage reports
+htmlcov/
+.coverage
+.coverage.*
+
+# Ignore build and distribution directories
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Ignore pytest cache
+.pytest_cache/
+
+# Ignore mypy cache
+.mypy_cache/
+
+# Ignore tox environments
+.tox/
+
+# Ignore pipenv files
+Pipfile.lock
+
+# Ignore poetry files
+poetry.lock
 # Ignore logs and temporary files
 *.log
 *.tmp
