@@ -1,3 +1,6 @@
+scan_result.txt
+
+
 # Ignore compiled Python files
 *.pyc
 *.pyo
