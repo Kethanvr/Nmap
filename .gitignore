@@ -27,3 +27,4 @@ venv/
 *.iml
 
 scan_results.txt
+file_structure.txt
